@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: DebtMates_postgres_container
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: debtMateDB
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:latest
+    container_name: DebtMates_redis_container
+    ports:
+      - "6379:6379"
+    environment:
+      REDIS_PASSWORD: test
+    volumes:
+      - redis_data:/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_container
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  redis_data:
