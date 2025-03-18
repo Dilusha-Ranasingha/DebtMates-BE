@@ -2,26 +2,33 @@ package com.example.debtmatesbe.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "usertbl")
+@Table(name = "\"user\"")
+@Data
+@NoArgsConstructor
 public class User {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String firstName;
-    private String lastName;
+    private String username;
+    private String password;
+    private String email;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    @Enumerated(EnumType.STRING)
+    private Role role;
 
-    public String getFirstName() { return firstName; }
-    public void setFirstName(String firstName) { this.firstName = firstName; }
+    public enum Role {
+        ADMIN, USER
+    }
 
-    public String getLastName() { return lastName; }
-    public void setLastName(String lastName) { this.lastName = lastName; }
+    public User(String username, String password, String email, Role role) {
+        this.username = username;
+        this.password = password;
+        this.email = email;
+        this.role = role;
+    }
 }
-

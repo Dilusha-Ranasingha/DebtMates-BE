@@ -4,10 +4,7 @@ package com.example.debtmatesbe.controller;
 import com.example.debtmatesbe.model.User;
 import com.example.debtmatesbe.service.DebtService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/debt")
@@ -24,6 +21,12 @@ public class debtController {
         }
         return "false";
 
+    }
+
+    @DeleteMapping("delete/{id}")
+    public String deleteUser(@PathVariable Long id) {
+        boolean deleted = debtService.deleteUserById(id);
+        return deleted ? "User deleted successfully" : "User not found";
     }
 
 }
