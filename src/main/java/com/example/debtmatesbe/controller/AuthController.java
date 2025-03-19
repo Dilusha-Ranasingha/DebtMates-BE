@@ -53,18 +53,36 @@ public class AuthController {
         @Email(message = "Email must be valid")
         @NotBlank(message = "Email is required")
         private String email;
+
+        private String role; // Add role field for admin registration
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request,
+                                      @RequestHeader(value = "Authorization", required = false) String token) {
         if (userRepository.findByUsername(request.getUsername()) != null) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
         }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEmail(request.getEmail());
-        user.setRole(User.Role.USER);
+
+        // Determine role based on token (admin can register other admins)
+        if (token != null && !token.isEmpty()) {
+            String actualToken = token.substring(7);
+            String username = jwtUtil.extractUsername(actualToken);
+            User currentUser = userRepository.findByUsername(username);
+            if (currentUser != null && currentUser.getRole() == User.Role.ADMIN) {
+                user.setRole(User.Role.ADMIN); // Admin can register other admins
+            } else {
+                user.setRole(User.Role.USER); // Default to USER for non-admin registration
+            }
+        } else {
+            user.setRole(User.Role.USER); // Default to USER if no token
+        }
+
         User savedUser = userRepository.save(user);
         return ResponseEntity.ok(savedUser);
     }
