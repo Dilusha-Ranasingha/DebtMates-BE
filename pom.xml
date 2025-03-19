@@ -14,7 +14,7 @@
     <name>DebtMates-BE</name>
     <description>DebtMates-BE</description>
     <properties>
-        <java.version>21</java.version>
+        <java.version>17</java.version>
         <lombok.version>1.18.34</lombok.version>
     </properties>
     <dependencies>
