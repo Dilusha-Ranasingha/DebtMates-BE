@@ -16,8 +16,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 @Service
 public class GroupService {
@@ -49,13 +50,13 @@ public class GroupService {
         group.setCreator(creator);
         GroupDetails savedGroup = groupDetailsRepository.save(group);
 
-        GroupResponse response = new GroupResponse();
-        response.setGroupId(savedGroup.getGroupId());
-        response.setGroupName(savedGroup.getGroupName());
-        response.setNumMembers(savedGroup.getNumMembers());
-        response.setGroupDescription(savedGroup.getGroupDescription());
-        response.setCreator(true);
-        return response;
+        // Add the creator to the group_members table
+        GroupMembers creatorMembership = new GroupMembers();
+        creatorMembership.setGroup(savedGroup);
+        creatorMembership.setUser(creator);
+        groupMembersRepository.save(creatorMembership);
+
+        return mapToGroupResponse(savedGroup, true);
     }
 
     public GroupResponse updateGroup(Long groupId, UpdateGroupRequest request) {
@@ -76,13 +77,7 @@ public class GroupService {
         group.setGroupDescription(request.getGroupDescription());
         GroupDetails updatedGroup = groupDetailsRepository.save(group);
 
-        GroupResponse response = new GroupResponse();
-        response.setGroupId(updatedGroup.getGroupId());
-        response.setGroupName(updatedGroup.getGroupName());
-        response.setNumMembers(updatedGroup.getNumMembers());
-        response.setGroupDescription(updatedGroup.getGroupDescription());
-        response.setCreator(true);
-        return response;
+        return mapToGroupResponse(updatedGroup, true);
     }
 
     public List<GroupResponse> getUserGroups() {
@@ -92,23 +87,22 @@ public class GroupService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
 
+        // Fetch groups where the user is a member
         List<GroupMembers> memberships = groupMembersRepository.findByUser(user);
+        // Fetch groups where the user is the creator
         List<GroupDetails> createdGroups = groupDetailsRepository.findAll().stream()
                 .filter(group -> group.getCreator().getId().equals(user.getId()))
-                .collect(Collectors.toList());
+                .toList(); // Updated to use toList()
 
-        return memberships.stream()
-                .map(membership -> {
-                    GroupDetails group = membership.getGroup();
-                    GroupResponse response = new GroupResponse();
-                    response.setGroupId(group.getGroupId());
-                    response.setGroupName(group.getGroupName());
-                    response.setNumMembers(group.getNumMembers());
-                    response.setGroupDescription(group.getGroupDescription());
-                    response.setCreator(group.getCreator().getId().equals(user.getId()));
-                    return response;
-                })
-                .collect(Collectors.toList());
+        // Combine groups from memberships and created groups, avoiding duplicates
+        Set<GroupDetails> allGroups = new HashSet<>();
+        allGroups.addAll(memberships.stream().map(GroupMembers::getGroup).toList()); // Updated to use toList()
+        allGroups.addAll(createdGroups);
+
+        // Map to GroupResponse
+        return allGroups.stream()
+                .map(group -> mapToGroupResponse(group, group.getCreator().getId().equals(user.getId())))
+                .toList(); // Updated to use toList()
     }
 
     public void addMembers(Long groupId, AddMembersRequest request) {
@@ -140,15 +134,15 @@ public class GroupService {
             groupMembersRepository.save(groupMember);
         }
     }
+
+    // Helper method to map GroupDetails to GroupResponse
+    private GroupResponse mapToGroupResponse(GroupDetails group, boolean isCreator) {
+        GroupResponse response = new GroupResponse();
+        response.setGroupId(group.getGroupId());
+        response.setGroupName(group.getGroupName());
+        response.setNumMembers(group.getNumMembers());
+        response.setGroupDescription(group.getGroupDescription());
+        response.setCreator(isCreator);
+        return response;
+    }
 }
-
-
-
-
-/*This service contains the business logic for group management:
-    createGroup: Creates a new group and sets the logged-in user as the creator.
-    updateGroup: Updates a group, but only if the logged-in user is the creator.
-    getUserGroups: Retrieves all groups the logged-in user is part of (as a member or creator).
-    addMembers: Adds members to a group, ensuring the logged-in user is the creator and the
-                number of members doesn’t exceed the group’s limit.
-*/

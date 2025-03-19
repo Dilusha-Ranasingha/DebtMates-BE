@@ -1,5 +1,6 @@
 package com.example.debtmatesbe.dto.group;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,7 +11,10 @@ public class GroupResponse {
     private String groupName;
     private int numMembers;
     private String groupDescription;
+
+    @JsonProperty("isCreator")
     private boolean isCreator;
+
 }
 
 
