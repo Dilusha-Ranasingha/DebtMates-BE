@@ -124,17 +124,21 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
         }
 
-        if (currentUser.getUsername().equals("SuperAdmin")) {
-            userRepository.delete(userToDelete);
-            return ResponseEntity.ok("User deleted successfully");
-        } else if (currentUser.getRole() == User.Role.ADMIN) {
-            if (userToDelete.getRole() == User.Role.ADMIN) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can delete other admins");
-            }
-            userRepository.delete(userToDelete);
-            return ResponseEntity.ok("User deleted successfully");
-        } else {
+        if (currentUser.getRole() != User.Role.ADMIN) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
         }
+
+        // Prevent deleting the SuperAdmin
+        if (userToDelete.getUsername().equals("SuperAdmin")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Cannot delete SuperAdmin");
+        }
+
+        // Only SuperAdmin can delete other admins
+        if (userToDelete.getRole() == User.Role.ADMIN && !currentUser.getUsername().equals("SuperAdmin")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can delete other admins");
+        }
+
+        userRepository.delete(userToDelete);
+        return ResponseEntity.ok("User deleted successfully");
     }
 }
