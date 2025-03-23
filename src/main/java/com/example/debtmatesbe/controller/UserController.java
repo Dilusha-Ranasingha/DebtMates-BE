@@ -74,6 +74,11 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already taken");
         }
 
+        User existingEmail = userRepository.findByEmail(updatedUser.getEmail());
+        if (existingEmail != null && !existingEmail.getId().equals(user.getId())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already taken");
+        }
+
         user.setUsername(updatedUser.getUsername());
         user.setEmail(updatedUser.getEmail());
         User savedUser = userRepository.save(user);

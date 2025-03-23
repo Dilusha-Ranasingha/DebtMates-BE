@@ -2,6 +2,8 @@ package com.example.debtmatesbe.controller;
 
 import com.example.debtmatesbe.model.User;
 import com.example.debtmatesbe.repo.UserRepository;
+import com.example.debtmatesbe.service.EmailService;
+import com.example.debtmatesbe.service.OtpService;
 import com.example.debtmatesbe.service.TokenService;
 import com.example.debtmatesbe.util.JwtUtil;
 import jakarta.validation.Valid;
@@ -9,10 +11,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,23 +20,22 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final TokenService tokenService;
-    private final Long expiration;
+    private final OtpService otpService;
+    private final EmailService emailService;
 
-    @Autowired
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                          JwtUtil jwtUtil, TokenService tokenService, @Value("${jwt.expiration}") Long expiration) {
+                          JwtUtil jwtUtil, TokenService tokenService,
+                          OtpService otpService, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.tokenService = tokenService;
-        this.expiration = expiration;
-        logger.info("AuthController initialized with expiration: {}", expiration);
+        this.otpService = otpService;
+        this.emailService = emailService;
     }
 
     @Getter
@@ -53,81 +50,131 @@ public class AuthController {
         @Email(message = "Email must be valid")
         @NotBlank(message = "Email is required")
         private String email;
+    }
 
-        private String role; // Add role field for admin registration
+    @Getter
+    @Setter
+    public static class LoginRequest {
+        @NotBlank(message = "Username is required")
+        private String username;
+
+        @NotBlank(message = "Password is required")
+        private String password;
+    }
+
+    @Getter
+    @Setter
+    public static class PasswordResetRequest {
+        @Email(message = "Email must be valid")
+        @NotBlank(message = "Email is required")
+        private String email;
+    }
+
+    @Getter
+    @Setter
+    public static class PasswordResetConfirmRequest {
+        @NotBlank(message = "Email is required")
+        private String email;
+
+        @NotBlank(message = "OTP is required")
+        private String otp;
+
+        @NotBlank(message = "New password is required")
+        private String newPassword;
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request,
-                                      @RequestHeader(value = "Authorization", required = false) String token) {
+    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request,
+                                           @RequestHeader(value = "Authorization", required = false) String token) {
         if (userRepository.findByUsername(request.getUsername()) != null) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
+        }
+        if (userRepository.findByEmail(request.getEmail()) != null) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already exists");
+        }
+
+        User.Role role = User.Role.USER;
+        if (token != null && token.startsWith("Bearer ")) {
+            String actualToken = token.substring(7);
+            String adminUsername = jwtUtil.extractUsername(actualToken);
+            User admin = userRepository.findByUsername(adminUsername);
+            if (admin != null && admin.getRole() == User.Role.ADMIN && admin.getUsername().equals("SuperAdmin")) {
+                role = User.Role.ADMIN;
+            } else {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can register admins");
+            }
         }
 
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setEmail(request.getEmail());
+        user.setRole(role);
+        userRepository.save(user);
 
-        // Determine role based on token (admin can register other admins)
-        if (token != null && !token.isEmpty()) {
-            String actualToken = token.substring(7);
-            String username = jwtUtil.extractUsername(actualToken);
-            User currentUser = userRepository.findByUsername(username);
-            if (currentUser != null && currentUser.getRole() == User.Role.ADMIN) {
-                user.setRole(User.Role.ADMIN); // Admin can register other admins
-            } else {
-                user.setRole(User.Role.USER); // Default to USER for non-admin registration
-            }
-        } else {
-            user.setRole(User.Role.USER); // Default to USER if no token
-        }
-
-        User savedUser = userRepository.save(user);
-        return ResponseEntity.ok(savedUser);
+        return ResponseEntity.ok("User registered successfully");
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody User user) {
-        logger.info("Login attempt for username: {}", user.getUsername());
-        if (user == null || user.getUsername() == null || user.getPassword() == null) {
-            logger.error("Invalid request body: username or password is null");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid request body");
-        }
-
-        User foundUser = userRepository.findByUsername(user.getUsername());
-        logger.info("Found user: {}", foundUser);
-        if (foundUser == null) {
-            logger.error("User not found: {}", user.getUsername());
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        User user = userRepository.findByUsername(request.getUsername());
+        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
         }
 
-        if (passwordEncoder == null) {
-            logger.error("PasswordEncoder is null");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Server configuration error");
-        }
-
-        if (!passwordEncoder.matches(user.getPassword(), foundUser.getPassword())) {
-            logger.error("Password mismatch for user: {}", user.getUsername());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
-        }
-
-        if (jwtUtil == null) {
-            logger.error("JwtUtil is null");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Server configuration error");
-        }
-
-        String token = jwtUtil.generateToken(foundUser.getUsername(), foundUser.getRole().toString());
-        logger.info("Generated token for user: {}", foundUser.getUsername());
-        tokenService.storeToken(foundUser.getUsername(), token, expiration);
+        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().toString());
+        tokenService.storeToken(token);
         return ResponseEntity.ok(token);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<String> logout(@RequestHeader("Authorization") String token) {
+        if (token == null || !token.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid token");
+        }
         String actualToken = token.substring(7);
-        String username = jwtUtil.extractUsername(actualToken);
-        tokenService.deleteToken(username);
+        tokenService.invalidateToken(actualToken);
         return ResponseEntity.ok("Logged out successfully");
+    }
+
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<String> requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        User user = userRepository.findByEmail(request.getEmail());
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Email not found");
+        }
+
+        // Generate OTP and send it via email
+        String otp = otpService.generateOtp(request.getEmail());
+        try {
+            emailService.sendOtpEmail(request.getEmail(), otp);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Failed to send OTP email: " + e.getMessage());
+        }
+
+        return ResponseEntity.ok("OTP sent to your email. Please check your inbox.");
+    }
+
+    @PostMapping("/password-reset/confirm")
+    public ResponseEntity<String> confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
+        // Verify the OTP
+        if (!otpService.verifyOtp(request.getEmail(), request.getOtp())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid or expired OTP");
+        }
+
+        // Find the user and update the password
+        User user = userRepository.findByEmail(request.getEmail());
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Email not found");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // Clear the OTP
+        otpService.clearOtp(request.getEmail());
+
+        return ResponseEntity.ok("Password reset successfully");
     }
 }

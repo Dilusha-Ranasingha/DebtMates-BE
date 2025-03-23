@@ -1,35 +1,24 @@
 package com.example.debtmatesbe.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class TokenService {
 
-    private final RedisTemplate<String, String> redisTemplate;
+    private final Set<String> validTokens = new HashSet<>();
 
-    @Autowired
-    public TokenService(RedisTemplate<String, String> redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public void storeToken(String token) {
+        validTokens.add(token);
     }
 
-    public void storeToken(String username, String token, long expiration) {
-        redisTemplate.opsForValue().set("jwt:" + username, token, expiration, TimeUnit.MILLISECONDS);
+    public void invalidateToken(String token) {
+        validTokens.remove(token);
     }
 
-    public String getToken(String username) {
-        return redisTemplate.opsForValue().get("jwt:" + username);
-    }
-
-    public void deleteToken(String username) {
-        redisTemplate.delete("jwt:" + username);
-    }
-
-    public boolean isTokenValid(String username, String token) {
-        String storedToken = getToken(username);
-        return storedToken != null && storedToken.equals(token);
+    public boolean isTokenValid(String token) {
+        return validTokens.contains(token);
     }
 }
