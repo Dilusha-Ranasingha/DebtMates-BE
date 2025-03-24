@@ -4,7 +4,6 @@ import com.example.debtmatesbe.model.User;
 import com.example.debtmatesbe.repo.UserRepository;
 import com.example.debtmatesbe.util.JwtUtil;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
@@ -27,30 +26,9 @@ public class UserController {
         this.passwordEncoder = passwordEncoder;
     }
 
-    @Getter
-    @Setter
-    public static class UpdateProfileRequest {
-        @NotBlank(message = "Username is required")
-        private String username;
-
-        @Email(message = "Email must be valid")
-        @NotBlank(message = "Email is required")
-        private String email;
-    }
-
-    @Getter
-    @Setter
-    public static class PasswordChangeRequest {
-        @NotBlank(message = "Old password is required")
-        private String oldPassword;
-
-        @NotBlank(message = "New password is required")
-        private String newPassword;
-    }
-
     @GetMapping("/profile")
     public ResponseEntity<?> getProfile(@RequestHeader("Authorization") String token) {
-        String actualToken = extractToken(token);
+        String actualToken = token.substring(7);
         String username = jwtUtil.extractUsername(actualToken);
         User user = userRepository.findByUsername(username);
         if (user == null) {
@@ -62,57 +40,59 @@ public class UserController {
     @PutMapping("/profile")
     public ResponseEntity<?> updateProfile(@RequestHeader("Authorization") String token,
                                            @Valid @RequestBody UpdateProfileRequest updatedUser) {
-        String actualToken = extractToken(token);
+        String actualToken = token.substring(7);
         String username = jwtUtil.extractUsername(actualToken);
         User user = userRepository.findByUsername(username);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
         }
 
-        User existingUser = userRepository.findByUsername(updatedUser.getUsername());
+        User existingUser = userRepository.findByEmail(updatedUser.getEmail());
         if (existingUser != null && !existingUser.getId().equals(user.getId())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already taken");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already taken");
         }
 
-        user.setUsername(updatedUser.getUsername());
         user.setEmail(updatedUser.getEmail());
         User savedUser = userRepository.save(user);
         return ResponseEntity.ok(savedUser);
     }
 
-    @PutMapping("/password")
+    @PostMapping("/change-password")
     public ResponseEntity<String> changePassword(@RequestHeader("Authorization") String token,
-                                                 @Valid @RequestBody PasswordChangeRequest request) {
-        String actualToken = extractToken(token);
+                                                 @Valid @RequestBody ChangePasswordRequest request) {
+        String actualToken = token.substring(7);
         String username = jwtUtil.extractUsername(actualToken);
         User user = userRepository.findByUsername(username);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
         }
-        if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Incorrect old password");
+
+        // Verify the current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Current password is incorrect");
         }
+
+        // Update the password
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
-        return ResponseEntity.ok("Password updated successfully");
+
+        return ResponseEntity.ok("Password changed successfully");
     }
 
-    @DeleteMapping("/profile")
-    public ResponseEntity<String> deleteProfile(@RequestHeader("Authorization") String token) {
-        String actualToken = extractToken(token);
-        String username = jwtUtil.extractUsername(actualToken);
-        User user = userRepository.findByUsername(username);
-        if (user == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
-        }
-        userRepository.delete(user);
-        return ResponseEntity.ok("Profile deleted successfully");
+    @Getter
+    @Setter
+    public static class UpdateProfileRequest {
+        @NotBlank(message = "Email is required")
+        private String email;
     }
 
-    private String extractToken(String token) {
-        if (token == null || !token.startsWith("Bearer ")) {
-            throw new IllegalArgumentException("Invalid Authorization header");
-        }
-        return token.substring(7);
+    @Getter
+    @Setter
+    public static class ChangePasswordRequest {
+        @NotBlank(message = "Current password is required")
+        private String currentPassword;
+
+        @NotBlank(message = "New password is required")
+        private String newPassword;
     }
 }
