@@ -1,9 +1,6 @@
 package com.example.debtmatesbe.controller;
 
-import com.example.debtmatesbe.dto.group.AddMembersRequest;
-import com.example.debtmatesbe.dto.group.CreateGroupRequest;
-import com.example.debtmatesbe.dto.group.GroupResponse;
-import com.example.debtmatesbe.dto.group.UpdateGroupRequest;
+import com.example.debtmatesbe.dto.group.*;
 import com.example.debtmatesbe.service.GroupService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +45,12 @@ public class GroupController {
         groupService.addMembers(groupId, request);
         return ResponseEntity.ok().build();
     }
+
+    @GetMapping("/{groupId}/members")
+    public ResponseEntity<List<MemberResponse>> getGroupMembers(@PathVariable Long groupId) {
+        List<MemberResponse> members = groupService.getGroupMembers(groupId);
+        return ResponseEntity.ok(members);
+    }
 }
 
 
@@ -58,4 +61,5 @@ This controller defines the Group Management APIs:
     PUT /api/groups/{groupId}: Updates an existing group.
     GET /api/groups/me: Retrieves the logged-in user’s groups.
     POST /api/groups/{groupId}/members: Adds members to a group.
+    GET /api/groups/{groupId}/members: Fetches the members of a group.
 */

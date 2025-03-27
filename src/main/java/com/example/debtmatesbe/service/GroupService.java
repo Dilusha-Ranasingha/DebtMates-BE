@@ -1,9 +1,6 @@
 package com.example.debtmatesbe.service;
 
-import com.example.debtmatesbe.dto.group.AddMembersRequest;
-import com.example.debtmatesbe.dto.group.CreateGroupRequest;
-import com.example.debtmatesbe.dto.group.GroupResponse;
-import com.example.debtmatesbe.dto.group.UpdateGroupRequest;
+import com.example.debtmatesbe.dto.group.*;
 import com.example.debtmatesbe.model.GroupDetails;
 import com.example.debtmatesbe.model.GroupMembers;
 import com.example.debtmatesbe.model.User;
@@ -133,6 +130,25 @@ public class GroupService {
             groupMember.setUser(member);
             groupMembersRepository.save(groupMember);
         }
+    }
+
+    public List<MemberResponse> getGroupMembers(Long groupId) {
+        // Verify the group exists
+        GroupDetails group = groupDetailsRepository.findById(groupId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Group not found"));
+
+        // Fetch the members of the group
+        List<GroupMembers> groupMembers = groupMembersRepository.findByGroupGroupId(groupId);
+
+        // Map to MemberResponse DTO
+        return groupMembers.stream()
+                .map(groupMember -> {
+                    MemberResponse response = new MemberResponse();
+                    response.setId(groupMember.getUser().getId());
+                    response.setUsername(groupMember.getUser().getUsername());
+                    return response;
+                })
+                .toList();
     }
 
     // Helper method to map GroupDetails to GroupResponse
