@@ -48,6 +48,7 @@ public class SecurityConfig {
                         // User endpoints
                         .requestMatchers("/api/user/**").hasAnyAuthority("USER", "ADMIN")
                         // All other requests require authentication
+                        .requestMatchers("/api/rotational/**").hasAnyAuthority("USER", "ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(new JwtAuthenticationFilter(jwtUtil, tokenService),
