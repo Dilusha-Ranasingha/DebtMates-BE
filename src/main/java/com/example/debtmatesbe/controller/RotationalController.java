@@ -129,13 +129,6 @@ public class RotationalController {
         return ResponseEntity.ok(slip);
     }
 
-
-    @GetMapping("/groups/{groupId}/members")
-    public ResponseEntity<?> getGroupMembers(@PathVariable Long groupId) {
-        List<User> members = rotationalService.getGroupMembers(groupId);
-        return ResponseEntity.ok(members);
-    }
-
     private User getCurrentUser(String username) {
         User user = rotationalService.getUserByUsername(username);
         if (user == null) {
