@@ -119,6 +119,14 @@ public class RotationalService {
         return plans;
     }
 
+
+    public List<User> getGroupMembers(Long groupId) {
+        RotationalGroup group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Group not found"));
+        return group.getMembers();
+    }
+
+
     public List<RotationalGroup> getUserGroups(User user) {
         List<RotationalGroup> createdGroups = groupRepository.findByCreator(user);
         List<RotationalGroup> memberGroups = groupRepository.findByMembersContaining(user);
