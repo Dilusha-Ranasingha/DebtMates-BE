@@ -7,7 +7,9 @@ import com.example.debtmatesbe.service.RotationalImageService;
 import com.example.debtmatesbe.util.JwtUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -115,18 +117,18 @@ public class RotationalController {
     public ResponseEntity<?> uploadSlip(
             @RequestHeader("Authorization") String token,
             @PathVariable Long paymentId,
-            @RequestBody byte[] slipData
-    ) {
+            @RequestParam("file") MultipartFile file
+    ) throws IOException {
         String username = jwtUtil.extractUsername(token.substring(7));
         User user = getCurrentUser(username);
-        RotationalPayment payment = imageService.uploadSlip(paymentId, slipData, user.getId());
+        RotationalPayment payment = imageService.uploadSlip(paymentId, file, user.getId());
         return ResponseEntity.ok(payment);
     }
 
     @GetMapping("/payments/{paymentId}/slip")
     public ResponseEntity<?> getSlip(@PathVariable Long paymentId) {
-        byte[] slip = imageService.getSlip(paymentId);
-        return ResponseEntity.ok(slip);
+        String slipUrl = imageService.getSlip(paymentId);
+        return ResponseEntity.ok(slipUrl);
     }
 
 
