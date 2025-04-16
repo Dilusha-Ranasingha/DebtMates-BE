@@ -33,8 +33,8 @@ public class RotationalPayment {
     @Column(nullable = false)
     private String status;
 
-    @Column(columnDefinition = "BYTEA")
-    private byte[] slip;
+    @Column(name = "slip_url", length = 2048)
+    private String slipUrl;   //make the cloudinary image upload then change the type to String to store the image URL
 
     private LocalDateTime paidAt;
 }
