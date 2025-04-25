@@ -55,8 +55,8 @@ public class AuthController {
     @Getter
     @Setter
     public static class LoginRequest {
-        @NotBlank(message = "Username is required")
-        private String username;
+        @NotBlank(message = "Username or email is required")
+        private String username; // This will now be used for both username and email
 
         @NotBlank(message = "Password is required")
         private String password;
@@ -117,9 +117,14 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        // Check if the provided input matches either username or email
         User user = userRepository.findByUsername(request.getUsername());
+        if (user == null) {
+            user = userRepository.findByEmail(request.getUsername());
+        }
+
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username/email or password");
         }
 
         String token = jwtUtil.generateToken(user.getUsername(), user.getRole().toString());
