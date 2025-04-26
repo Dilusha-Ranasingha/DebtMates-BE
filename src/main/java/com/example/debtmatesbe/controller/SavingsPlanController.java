@@ -1,52 +1,87 @@
 package com.example.debtmatesbe.controller;
 
+import com.example.debtmatesbe.dto.CreateSavingsPlanDto;
+import com.example.debtmatesbe.dto.DepositDto;
+import com.example.debtmatesbe.dto.SavingsPlanDto;
+import com.example.debtmatesbe.dto.UpdateSavingsPlanDto;
+import com.example.debtmatesbe.exception.ResourceNotFoundException;
 import com.example.debtmatesbe.model.SavingsPlan;
+import com.example.debtmatesbe.model.User;
 import com.example.debtmatesbe.service.SavingsPlanService;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/api/savings")
-@CrossOrigin(origins = "http://http://localhost:5173") // Adjust based on your frontend URL
+@RequestMapping("/api/savings-plans")
 public class SavingsPlanController {
 
-    @Autowired
-    private SavingsPlanService service;
+    private final SavingsPlanService savingsPlanService;
 
-    @GetMapping("/plans")
-    public ResponseEntity<List<SavingsPlan>> getAllPlans() {
-        return ResponseEntity.ok(service.getAllPlans());
+    public SavingsPlanController(SavingsPlanService savingsPlanService) {
+        this.savingsPlanService = savingsPlanService;
     }
 
-    @GetMapping("/plans/{id}")
-    public ResponseEntity<SavingsPlan> getPlanById(@PathVariable Long id) {
-        return service.getPlanById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    @PostMapping
+    public ResponseEntity<SavingsPlanDto> createPlan(@Valid @RequestBody CreateSavingsPlanDto createDto) {
+        SavingsPlanDto createdPlan = savingsPlanService.createPlan(createDto);
+        return ResponseEntity.status(201).body(createdPlan);
     }
 
-    @PostMapping("/plans")
-    public ResponseEntity<SavingsPlan> createPlan(@RequestBody SavingsPlan plan) {
-        return ResponseEntity.ok(service.createPlan(plan));
+    @GetMapping("/{id}")
+    public ResponseEntity<SavingsPlanDto> getPlanById(@PathVariable Long id) {
+        SavingsPlanDto plan = savingsPlanService.getPlanById(id);
+        return ResponseEntity.ok(plan);
     }
 
-    @PutMapping("/plans/{id}")
-    public ResponseEntity<SavingsPlan> updatePlan(@PathVariable Long id, @RequestBody SavingsPlan plan) {
-        return ResponseEntity.ok(service.updatePlan(id, plan));
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<SavingsPlanDto>> getPlansByUserId(@PathVariable Long userId) {
+        try {
+            List<SavingsPlanDto> plans = savingsPlanService.getPlansByUserId(userId);
+            return ResponseEntity.ok(plans);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
     }
 
-    @DeleteMapping("/plans/{id}")
+    @PutMapping("/{id}")
+    public ResponseEntity<SavingsPlanDto> updatePlan(@PathVariable Long id, @Valid @RequestBody UpdateSavingsPlanDto updateDto) {
+        SavingsPlanDto updatedPlan = savingsPlanService.updatePlan(id, updateDto);
+        return ResponseEntity.ok(updatedPlan);
+    }
+
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePlan(@PathVariable Long id) {
-        service.deletePlan(id);
-        return ResponseEntity.ok().build();
+        savingsPlanService.deletePlan(id);
+        return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/plans/{id}/deposit")
-    public ResponseEntity<SavingsPlan> recordDeposit(@PathVariable Long id, @RequestBody DepositRequest deposit) {
-        return ResponseEntity.ok(service.recordDeposit(id, deposit.getAmount()));
+    @PostMapping("/{id}/deposit")
+    public ResponseEntity<SavingsPlanDto> recordDeposit(@PathVariable Long id, @Valid @RequestBody DepositDto depositDto) {
+        SavingsPlanDto updatedPlan = savingsPlanService.recordDeposit(id, depositDto);
+        return ResponseEntity.ok(updatedPlan);
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, BigDecimal>> getSavingStats(@AuthenticationPrincipal User user) {
+        List<SavingsPlanDto> plans = savingsPlanService.getPlansByUserId(user.getId());
+        BigDecimal totalSaved = plans.stream()
+                .map(SavingsPlanDto::getCurrentAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalGoal = plans.stream()
+                .map(SavingsPlanDto::getGoalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Map<String, BigDecimal> stats = new HashMap<>();
+        stats.put("totalSaved", totalSaved);
+        stats.put("totalGoal", totalGoal);
+        return ResponseEntity.ok(stats);
     }
 }
 
