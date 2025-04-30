@@ -9,6 +9,7 @@ import java.time.LocalDate;
 
 @Getter
 @Setter
+
 public class CreateSavingsPlanDto {
     @NotBlank(message = "Plan name is required")
     private String planName;
