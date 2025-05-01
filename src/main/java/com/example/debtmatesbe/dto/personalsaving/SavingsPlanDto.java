@@ -1,4 +1,4 @@
-package com.example.debtmatesbe.dto;
+package com.example.debtmatesbe.dto.personalsaving;
 
 import lombok.Getter;
 import lombok.Setter;

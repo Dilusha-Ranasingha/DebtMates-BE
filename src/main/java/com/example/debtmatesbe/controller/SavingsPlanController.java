@@ -1,11 +1,10 @@
 package com.example.debtmatesbe.controller;
 
-import com.example.debtmatesbe.dto.CreateSavingsPlanDto;
-import com.example.debtmatesbe.dto.DepositDto;
-import com.example.debtmatesbe.dto.SavingsPlanDto;
-import com.example.debtmatesbe.dto.UpdateSavingsPlanDto;
+import com.example.debtmatesbe.dto.personalsaving.CreateSavingsPlanDto;
+import com.example.debtmatesbe.dto.personalsaving.DepositDto;
+import com.example.debtmatesbe.dto.personalsaving.SavingsPlanDto;
+import com.example.debtmatesbe.dto.personalsaving.UpdateSavingsPlanDto;
 import com.example.debtmatesbe.exception.ResourceNotFoundException;
-import com.example.debtmatesbe.model.SavingsPlan;
 import com.example.debtmatesbe.model.User;
 import com.example.debtmatesbe.service.SavingsPlanService;
 import jakarta.validation.Valid;

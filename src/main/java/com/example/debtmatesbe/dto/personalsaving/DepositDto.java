@@ -1,4 +1,4 @@
-package com.example.debtmatesbe.dto;
+package com.example.debtmatesbe.dto.personalsaving;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
