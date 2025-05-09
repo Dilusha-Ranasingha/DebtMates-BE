@@ -1,6 +1,8 @@
 package com.example.debtmatesbe.controller;
 
+import com.example.debtmatesbe.model.ActivityLog;
 import com.example.debtmatesbe.model.User;
+import com.example.debtmatesbe.repo.ActivityLogRepository;
 import com.example.debtmatesbe.repo.UserRepository;
 import com.example.debtmatesbe.service.EmailService;
 import com.example.debtmatesbe.service.OtpService;
@@ -21,16 +23,18 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final UserRepository userRepository;
+    private final ActivityLogRepository activityLogRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final TokenService tokenService;
     private final OtpService otpService;
     private final EmailService emailService;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                          JwtUtil jwtUtil, TokenService tokenService,
+    public AuthController(UserRepository userRepository, ActivityLogRepository activityLogRepository,
+                          PasswordEncoder passwordEncoder, JwtUtil jwtUtil, TokenService tokenService,
                           OtpService otpService, EmailService emailService) {
         this.userRepository = userRepository;
+        this.activityLogRepository = activityLogRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.tokenService = tokenService;
@@ -112,6 +116,11 @@ public class AuthController {
         user.setRole(role);
         userRepository.save(user);
 
+        // Log registration activity
+        ActivityLog activityLog = new ActivityLog(ActivityLog.ActivityType.REGISTRATION,
+                user.getUsername(), user.getEmail(), user.getRole().toString());
+        activityLogRepository.save(activityLog);
+
         return ResponseEntity.ok("User registered successfully");
     }
 
@@ -129,6 +138,14 @@ public class AuthController {
 
         String token = jwtUtil.generateToken(user.getUsername(), user.getRole().toString());
         tokenService.storeToken(token);
+
+        // Log login activity for admins only
+        if (user.getRole() == User.Role.ADMIN) {
+            ActivityLog activityLog = new ActivityLog(ActivityLog.ActivityType.LOGIN,
+                    user.getUsername(), user.getEmail(), user.getRole().toString());
+            activityLogRepository.save(activityLog);
+        }
+
         return ResponseEntity.ok(token);
     }
 
