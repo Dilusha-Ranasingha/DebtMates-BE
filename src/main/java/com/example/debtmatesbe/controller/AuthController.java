@@ -1,6 +1,8 @@
 package com.example.debtmatesbe.controller;
 
+import com.example.debtmatesbe.model.ActivityLog;
 import com.example.debtmatesbe.model.User;
+import com.example.debtmatesbe.repo.ActivityLogRepository;
 import com.example.debtmatesbe.repo.UserRepository;
 import com.example.debtmatesbe.service.EmailService;
 import com.example.debtmatesbe.service.OtpService;
@@ -21,16 +23,18 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final UserRepository userRepository;
+    private final ActivityLogRepository activityLogRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final TokenService tokenService;
     private final OtpService otpService;
     private final EmailService emailService;
 
-    public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                          JwtUtil jwtUtil, TokenService tokenService,
+    public AuthController(UserRepository userRepository, ActivityLogRepository activityLogRepository,
+                          PasswordEncoder passwordEncoder, JwtUtil jwtUtil, TokenService tokenService,
                           OtpService otpService, EmailService emailService) {
         this.userRepository = userRepository;
+        this.activityLogRepository = activityLogRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.tokenService = tokenService;
@@ -55,8 +59,8 @@ public class AuthController {
     @Getter
     @Setter
     public static class LoginRequest {
-        @NotBlank(message = "Username is required")
-        private String username;
+        @NotBlank(message = "Username or email is required")
+        private String username; // This will now be used for both username and email
 
         @NotBlank(message = "Password is required")
         private String password;
@@ -112,18 +116,36 @@ public class AuthController {
         user.setRole(role);
         userRepository.save(user);
 
+        // Log registration activity
+        ActivityLog activityLog = new ActivityLog(ActivityLog.ActivityType.REGISTRATION,
+                user.getUsername(), user.getEmail(), user.getRole().toString());
+        activityLogRepository.save(activityLog);
+
         return ResponseEntity.ok("User registered successfully");
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        // Check if the provided input matches either username or email
         User user = userRepository.findByUsername(request.getUsername());
+        if (user == null) {
+            user = userRepository.findByEmail(request.getUsername());
+        }
+
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid credentials");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username/email or password");
         }
 
         String token = jwtUtil.generateToken(user.getUsername(), user.getRole().toString());
         tokenService.storeToken(token);
+
+        // Log login activity for admins only
+        if (user.getRole() == User.Role.ADMIN) {
+            ActivityLog activityLog = new ActivityLog(ActivityLog.ActivityType.LOGIN,
+                    user.getUsername(), user.getEmail(), user.getRole().toString());
+            activityLogRepository.save(activityLog);
+        }
+
         return ResponseEntity.ok(token);
     }
 

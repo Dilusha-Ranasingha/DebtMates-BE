@@ -1,6 +1,8 @@
 package com.example.debtmatesbe.controller;
 
+import com.example.debtmatesbe.model.ActivityLog;
 import com.example.debtmatesbe.model.User;
+import com.example.debtmatesbe.repo.ActivityLogRepository;
 import com.example.debtmatesbe.repo.UserRepository;
 import com.example.debtmatesbe.util.JwtUtil;
 import jakarta.validation.Valid;
@@ -20,25 +22,24 @@ import org.springframework.web.bind.annotation.*;
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final ActivityLogRepository activityLogRepository;
     private final JwtUtil jwtUtil;
 
-    public AdminController(UserRepository userRepository, JwtUtil jwtUtil) {
+    public AdminController(UserRepository userRepository, ActivityLogRepository activityLogRepository, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
+        this.activityLogRepository = activityLogRepository;
         this.jwtUtil = jwtUtil;
     }
 
     @Getter
     @Setter
-    public static class UpdateUserRequest {
+    public static class UpdateAdminRequest {
         @NotBlank(message = "Username is required")
         private String username;
 
         @Email(message = "Email must be valid")
         @NotBlank(message = "Email is required")
         private String email;
-
-        @NotBlank(message = "Role is required")
-        private String role;
     }
 
     @GetMapping("/users")
@@ -80,10 +81,9 @@ public class AdminController {
         return ResponseEntity.ok(adminPage);
     }
 
-    @PutMapping("/users/{id}")
-    public ResponseEntity<?> updateUser(@PathVariable Long id,
-                                        @Valid @RequestBody UpdateUserRequest updatedUser,
-                                        @RequestHeader("Authorization") String token) {
+    @GetMapping("/users/{id}")
+    public ResponseEntity<?> getUserById(@PathVariable Long id,
+                                         @RequestHeader("Authorization") String token) {
         String actualToken = token.substring(7);
         String username = jwtUtil.extractUsername(actualToken);
         User currentUser = userRepository.findByUsername(username);
@@ -91,54 +91,148 @@ public class AdminController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
         }
 
-        User userToUpdate = userRepository.findById(id).orElse(null);
-        if (userToUpdate == null) {
+        User user = userRepository.findById(id).orElse(null);
+        if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
         }
 
-        User existingUser = userRepository.findByUsername(updatedUser.getUsername());
-        if (existingUser != null && !existingUser.getId().equals(userToUpdate.getId())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already taken");
-        }
-
-        User existingEmail = userRepository.findByEmail(updatedUser.getEmail());
-        if (existingEmail != null && !existingEmail.getId().equals(userToUpdate.getId())) {
-            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already taken");
-        }
-
-        userToUpdate.setUsername(updatedUser.getUsername());
-        userToUpdate.setEmail(updatedUser.getEmail());
-        userToUpdate.setRole(User.Role.valueOf(updatedUser.getRole()));
-        User savedUser = userRepository.save(userToUpdate);
-        return ResponseEntity.ok(savedUser);
+        return ResponseEntity.ok(user);
     }
 
-    @DeleteMapping("/users/{id}")
-    public ResponseEntity<String> deleteUser(@PathVariable Long id, @RequestHeader("Authorization") String token) {
+    // Endpoint for admins to view user registration activity
+    @GetMapping("/activity/registrations/users")
+    public ResponseEntity<?> getUserRegistrationActivity(@RequestParam(defaultValue = "0") int page,
+                                                         @RequestParam(defaultValue = "10") int size,
+                                                         @RequestHeader("Authorization") String token) {
         String actualToken = token.substring(7);
         String username = jwtUtil.extractUsername(actualToken);
         User currentUser = userRepository.findByUsername(username);
-        User userToDelete = userRepository.findById(id).orElse(null);
+        if (currentUser == null || currentUser.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
+        }
 
-        if (currentUser == null || userToDelete == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ActivityLog> activityPage = activityLogRepository.findByActivityTypeAndRole(
+                ActivityLog.ActivityType.REGISTRATION, "USER", pageable);
+        if (activityPage.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No user registration activity found");
+        }
+        return ResponseEntity.ok(activityPage);
+    }
+
+    // Endpoint for SuperAdmin to view all registration activity (users and admins)
+    @GetMapping("/activity/registrations/all")
+    public ResponseEntity<?> getAllRegistrationActivity(@RequestParam(defaultValue = "0") int page,
+                                                        @RequestParam(defaultValue = "10") int size,
+                                                        @RequestHeader("Authorization") String token) {
+        String actualToken = token.substring(7);
+        String username = jwtUtil.extractUsername(actualToken);
+        User currentUser = userRepository.findByUsername(username);
+        if (currentUser == null || currentUser.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
+        }
+        if (!username.equals("SuperAdmin")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can view all registration activity");
+        }
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ActivityLog> activityPage = activityLogRepository.findByActivityType(
+                ActivityLog.ActivityType.REGISTRATION, pageable);
+        if (activityPage.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No registration activity found");
+        }
+        return ResponseEntity.ok(activityPage);
+    }
+
+    // Endpoint for SuperAdmin to view admin login activity
+    @GetMapping("/activity/logins/admins")
+    public ResponseEntity<?> getAdminLoginActivity(@RequestParam(defaultValue = "0") int page,
+                                                   @RequestParam(defaultValue = "10") int size,
+                                                   @RequestHeader("Authorization") String token) {
+        String actualToken = token.substring(7);
+        String username = jwtUtil.extractUsername(actualToken);
+        User currentUser = userRepository.findByUsername(username);
+        if (currentUser == null || currentUser.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
+        }
+        if (!username.equals("SuperAdmin")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can view admin login activity");
+        }
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<ActivityLog> activityPage = activityLogRepository.findByActivityTypeAndRole(
+                ActivityLog.ActivityType.LOGIN, "ADMIN", pageable);
+        if (activityPage.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("No admin login activity found");
+        }
+        return ResponseEntity.ok(activityPage);
+    }
+
+    // Endpoint for SuperAdmin to edit an admin
+    @PutMapping("/admins/{id}")
+    public ResponseEntity<?> updateAdmin(@PathVariable Long id,
+                                         @Valid @RequestBody UpdateAdminRequest updatedAdmin,
+                                         @RequestHeader("Authorization") String token) {
+        String actualToken = token.substring(7);
+        String username = jwtUtil.extractUsername(actualToken);
+        User currentUser = userRepository.findByUsername(username);
+        if (currentUser == null || currentUser.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
+        }
+        if (!username.equals("SuperAdmin")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can edit admins");
+        }
+
+        User adminToUpdate = userRepository.findById(id).orElse(null);
+        if (adminToUpdate == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Admin not found");
+        }
+        if (adminToUpdate.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("User is not an admin");
+        }
+
+        User existingUser = userRepository.findByUsername(updatedAdmin.getUsername());
+        if (existingUser != null && !existingUser.getId().equals(adminToUpdate.getId())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already taken");
+        }
+
+        User existingEmail = userRepository.findByEmail(updatedAdmin.getEmail());
+        if (existingEmail != null && !existingEmail.getId().equals(adminToUpdate.getId())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already taken");
+        }
+
+        adminToUpdate.setUsername(updatedAdmin.getUsername());
+        adminToUpdate.setEmail(updatedAdmin.getEmail());
+        User savedAdmin = userRepository.save(adminToUpdate);
+        return ResponseEntity.ok(savedAdmin);
+    }
+
+    // Endpoint for SuperAdmin to delete an admin
+    @DeleteMapping("/admins/{id}")
+    public ResponseEntity<String> deleteAdmin(@PathVariable Long id, @RequestHeader("Authorization") String token) {
+        String actualToken = token.substring(7);
+        String username = jwtUtil.extractUsername(actualToken);
+        User currentUser = userRepository.findByUsername(username);
+        User adminToDelete = userRepository.findById(id).orElse(null);
+
+        if (currentUser == null || adminToDelete == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Admin not found");
         }
 
         if (currentUser.getRole() != User.Role.ADMIN) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Admin access required");
         }
-
-        // Prevent deleting the SuperAdmin
-        if (userToDelete.getUsername().equals("SuperAdmin")) {
+        if (!currentUser.getUsername().equals("SuperAdmin")) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can delete admins");
+        }
+        if (adminToDelete.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("User is not an admin");
+        }
+        if (adminToDelete.getUsername().equals("SuperAdmin")) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Cannot delete SuperAdmin");
         }
 
-        // Only SuperAdmin can delete other admins
-        if (userToDelete.getRole() == User.Role.ADMIN && !currentUser.getUsername().equals("SuperAdmin")) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only SuperAdmin can delete other admins");
-        }
-
-        userRepository.delete(userToDelete);
-        return ResponseEntity.ok("User deleted successfully");
+        userRepository.delete(adminToDelete);
+        return ResponseEntity.ok("Admin deleted successfully");
     }
 }
