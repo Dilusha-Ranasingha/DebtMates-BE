@@ -6,9 +6,6 @@ This repository contains the backend for *DebtMates*, a platform designed to sim
 
 The backend integrates with the *DebtMates* frontend (maintained in a separate repository https://github.com/Dilusha-Ranasingha/DebtMates-FE) to deliver a seamless user experience for managing group finances.
 
-<img width="782" alt="debtmateswall" src="https://github.com/user-attachments/assets/2319ae30-bf16-4145-9b7a-c21c9f2205e3" />
-
-
 ## Table of Contents
 
 - [Features](#features)
