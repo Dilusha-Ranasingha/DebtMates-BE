@@ -1,0 +1,46 @@
+name: Deploy DebtMates-BE to EC2
+
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  deploy:
+    name: Deploy to EC2 self-hosted runner
+    runs-on: self-hosted
+
+    env:
+      # Inject GitHub secrets into environment
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      CLOUDINARY_NAME: ${{ secrets.CLOUDINARY_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Stop old container (if running)
+        run: |
+          docker stop debtmates-backend || true
+          docker rm debtmates-backend || true
+
+      - name: Build Docker Image
+        run: docker build -t debtmates-be .
+
+      - name: Run Docker Container
+        run: |
+          docker run -d \
+            --name debtmates-backend \
+            -p 8080:8080 \
+            -e JWT_SECRET="$JWT_SECRET" \
+            -e GEMINI_API_KEY="$GEMINI_API_KEY" \
+            -e EMAIL_USERNAME="$EMAIL_USERNAME" \
+            -e EMAIL_PASSWORD="$EMAIL_PASSWORD" \
+            -e CLOUDINARY_NAME="$CLOUDINARY_NAME" \
+            -e CLOUDINARY_API_KEY="$CLOUDINARY_API_KEY" \
+            -e CLOUDINARY_API_SECRET="$CLOUDINARY_API_SECRET" \
+            debtmates-be
